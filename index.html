@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aura Messenger</title>
+    <!-- PeerJS для связи -->
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --ios-blue: #007AFF;
+            --ios-bg: #F2F2F7;
+            --white: #FFFFFF;
+            --gray-text: #8E8E93;
+            --separator: #C6C6C8;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%); /* Красивый фон за телефоном */
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* --- IPHONE FRAME --- */
+        .iphone-frame {
+            width: 100%; max-width: 390px; height: 100%; max-height: 844px;
+            background: var(--white);
+            border-radius: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            display: flex; flex-direction: column;
+            position: relative; overflow: hidden;
+            border: 8px solid #fff; /* Рамка телефона */
+        }
+
+        .notch {
+            position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+            width: 120px; height: 30px; background: #000; 
+            border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; 
+            z-index: 100;
+        }
+
+        /* Header */
+        .header {
+            padding: 45px 20px 15px;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            display: flex; align-items: center; justify-content: space-between;
+            z-index: 10;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .back-icon { color: var(--ios-blue); font-size: 20px; cursor: pointer; }
+        .avatar { 
+            width: 40px; height: 40px; border-radius: 50%; background: #E5E5EA; 
+            display: flex; align-items: center; justify-content: center; font-size: 18px;
+        }
+        .chat-info h3 { margin: 0; font-size: 17px; font-weight: 600; color: #000; }
+        .chat-info p { margin: 2px 0 0; font-size: 12px; color: var(--ios-blue); }
+
+        /* Control Panel (Clean iOS Style) */
+        .panel {
+            padding: 15px;
+            background: var(--ios-bg);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        
+        .tabs { 
+            background: #E5E5EA; border-radius: 10px; padding: 2px; 
+            display: flex; margin-bottom: 15px; 
+        }
+        .tab-btn {
+            flex: 1; padding: 6px; border: none; border-radius: 8px;
+            background: transparent; color: #000; font-size: 13px; font-weight: 600; 
+            cursor: pointer; transition: 0.2s;
+        }
+        .tab-btn.active { background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+        .input-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .ios-input {
+            flex: 1; padding: 10px 12px; border-radius: 10px; border: none;
+            background: #fff; font-size: 15px; color: #000;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .ios-btn {
+            background: var(--ios-blue); color: white; border: none;
+            padding: 0 16px; border-radius: 10px; font-weight: 600; font-size: 15px;
+            cursor: pointer;
+        }
+        .ios-btn:active { opacity: 0.7; }
+
+        .id-box {
+            background: #fff; padding: 10px; border-radius: 10px;
+            text-align: center; font-size: 12px; color: var(--gray-text);
+            cursor: pointer; border: 1px dashed #ccc;
+        }
+        .id-code { color: var(--ios-blue); font-weight: 700; font-family: monospace; font-size: 14px; display: block; margin-top: 4px;}
+
+        /* Chat Area */
+        .chat-area {
+            flex: 1; padding: 20px; overflow-y: auto;
+            display: flex; flex-direction: column; gap: 8px;
+            background: #fff;
+        }
+
+        .bubble {
+            max-width: 75%; padding: 10px 14px; font-size: 17px; line-height: 1.4;
+            position: relative; word-wrap: break-word;
+            animation: popIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+
+        .received { background: #E5E5EA; color: #000; align-self: flex-start; border-radius: 20px; border-bottom-left-radius: 5px; }
+        .sent { background: var(--ios-blue); color: white; align-self: flex-end; border-radius: 20px; border-bottom-right-radius: 5px; }
+        
+        .sender-name { font-size: 11px; font-weight: 600; margin-bottom: 4px; opacity: 0.8; }
+        .msg-time { font-size: 10px; opacity: 0.6; margin-top: 4px; display: block; text-align: right; }
+
+        .system-msg { 
+            text-align: center; font-size: 12px; color: var(--gray-text); 
+            margin: 15px 0; font-weight: 500; 
+        }
+
+        /* Input Dock */
+        .input-dock {
+            padding: 10px 15px 25px;
+            background: #F9F9F9;
+            border-top: 1px solid rgba(0,0,0,0.1);
+            display: flex; align-items: center; gap: 10px;
+        }
+        .dock-input {
+            flex: 1; background: #fff; border: 1px solid #E5E5EA;
+            border-radius: 20px; padding: 8px 15px; font-size: 17px;
+        }
+        .send-circle {
+            width: 30px; height: 30px; border-radius: 50%; 
+            background: var(--ios-blue); color: white;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; opacity: 0.5; transition: 0.2s;
+        }
+        .send-circle.active { opacity: 1; }
+
+        /* Toast */
+        .toast {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9);
+            background: rgba(0,0,0,0.8); color: white; padding: 12px 24px;
+            border-radius: 20px; font-size: 14px; z-index: 200; 
+            opacity: 0; pointer-events: none; transition: 0.3s;
+        }
+        .toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+    </style>
+</head>
+<body>
+
+<div class="iphone-frame">
+    <div class="notch"></div>
+    <div class="toast" id="toast">Скопировано!</div>
+
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <i class="fa-solid fa-chevron-left back-icon"></i>
+            <div class="avatar"></div>
+            <div class="chat-info">
+                <h3 id="roomName">Чат</h3>
+                <p id="statusText">Не в сети</p>
+            </div>
+        </div>
+        <i class="fa-solid fa-video" style="color: var(--ios-blue); font-size: 22px;"></i>
+    </div>
+
+    <!-- Панель управления (iOS Style) -->
+    <div class="panel">
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('join')">Войти</button>
+            <button class="tab-btn" onclick="switchTab('create')">Создать</button>
+        </div>
+
+        <!-- Вкладка Войти -->
+        <div id="tab-join" class="input-row">
+            <input type="text" class="ios-input" id="roomIdInput" placeholder="Вставь ID друга...">
+            <button class="ios-btn" onclick="joinRoom()">Join</button>
+        </div>
+
+        <!-- Вкладка Создать -->
+        <div id="tab-create" class="input-row" style="display:none;">
+            <input type="text" class="ios-input" id="newRoomName" placeholder="Название группы...">
+            <button class="ios-btn" onclick="createRoom()">Start</button>
+        </div>
+
+        <div class="id-box" onclick="copyMyId()">
+            Твой уникальный ID (нажми чтобы скопировать)
+            <span class="id-code" id="myIdDisplay">...</span>
+        </div>
+    </div>
+
+    <!-- Чат -->
+    <div class="chat-area" id="chatArea">
+        <div class="system-msg">Создай комнату или войди по ID,<br>чтобы начать общение.</div>
+    </div>
+
+    <!-- Ввод -->
+    <div class="input-dock">
+        <input type="text" class="dock-input" id="msgInput" placeholder="Сообщение..." oninput="toggleSend()">
+        <div class="send-circle" id="sendBtn" onclick="sendMessage()">
+            <i class="fa-solid fa-arrow-up" style="font-size: 12px;"></i>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- LOGIC ---
+    let peer = null;
+    let myId = null;
+    let connections = []; 
+    let isHost = false;
+    let myName = "Я"; 
+
+    // 1. Генерируем ID СРАЗУ (локально), чтобы не ждать сервер
+    const localId = Math.random().toString(36).substr(2, 6).toUpperCase();
+    document.getElementById('myIdDisplay').innerText = localId;
+
+    function initPeer() {
+        // Пытаемся занять этот ID в сети PeerJS
+        peer = new Peer(localId);
+
+        peer.on('open', (id) => {
+            myId = id;
+            console.log('Connected with ID:', id);
+        });
+
+        // Если кто-то подключается к нам
+        peer.on('connection', (conn) => {
+            handleConnection(conn);
+        });
+
+        peer.on('error', (err) => {
+            console.error(err);
+            if(err.type === 'unavailable-id') {
+                // Если ID занят (редко), просто перезагружаем страницу для нового
+                location.reload(); 
+            }
+        });
+    }
+
+    function handleConnection(conn) {
+        // Проверка на дубликаты
+        if(connections.find(c => c.peer === conn.peer)) return;
+        
+        connections.push(conn);
+        updateStatus();
+
+        conn.on('data', (data) => {
+            if (data.type === 'chat') {
+                addBubble(data.text, 'received', data.sender);
+            } else if (data.type === 'join') {
+                addSystemMessage(`${data.sender} присоединился.`);
+                broadcast({ type: 'system', text: `${data.sender} вошел в чат` });
+            }
+        });
+
+        conn.on('close', () => {
+            connections = connections.filter(c => c !== conn);
+            updateStatus();
+            addSystemMessage("Участник вышел.");
+        });
+    }
+
+    function createRoom() {
+        const name = document.getElementById('newRoomName').value || "Группа";
+        document.getElementById('roomName').innerText = name;
+        isHost = true;
+        
+        // Очищаем чат при создании новой комнаты
+        document.getElementById('chatArea').innerHTML = '';
+        addSystemMessage(`Комната создана. Твой ID сверху. Скинь его друзьям!`);
+        
+        updateStatus();
+        switchTab('join'); // Переключаем вкладку автоматически
+    }
+
+    function joinRoom() {
+        const targetId = document.getElementById('roomIdInput').value.trim().toUpperCase();
+        if (!targetId) return showToast("Введи ID!");
+        if (targetId === myId) return showToast("Это твой ID!");
+
+        const conn = peer.connect(targetId);
+        handleConnection(conn);
+        
+        conn.on('open', () => {
+            conn.send({ type: 'join', sender: myName });
+            document.getElementById('roomName').innerText = "Групповой чат";
+            
+            // Очищаем чат при входе
+            document.getElementById('chatArea').innerHTML = '';
+            addSystemMessage("Вы вошли в чат.");
+        });
+        
+        conn.on('error', () => showToast("Ошибка подключения"));
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('msgInput');
+        const text = input.value.trim();
+        if (!text) return;
+
+        addBubble(text, 'sent', 'Я');
+        broadcast({ type: 'chat', text: text, sender: myName });
+
+        input.value = '';
+        toggleSend();
+    }
+
+    function broadcast(data) {
+        connections.forEach(conn => {
+            if (conn.open) conn.send(data);
+        });
+    }
+
+    // --- UI HELPERS ---
+    function addBubble(text, type, senderName) {
+        const chat = document.getElementById('chatArea');
+        const div = document.createElement('div');
+        div.className = `bubble ${type}`;
+        
+        let content = '';
+        if (type === 'received' && senderName !== 'Я') {
+            content += `<div class="sender-name">${senderName}</div>`;
+        }
+        content += `${text}<span class="msg-time">${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>`;
+        
+        div.innerHTML = content;
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+    }
+
+    function addSystemMessage(text) {
+        const chat = document.getElementById('chatArea');
+        const div = document.createElement('div');
+        div.className = 'system-msg';
+        div.innerText = text;
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+    }
+
+    function updateStatus() {
+        const count = connections.length;
+        document.getElementById('statusText').innerText = count > 0 ? `${count} участников` : 'Ожидание...';
+    }
+
+    function toggleSend() {
+        const btn = document.getElementById('sendBtn');
+        const val = document.getElementById('msgInput').value.trim();
+        if(val) btn.classList.add('active'); else btn.classList.remove('active');
+    }
+
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.input-row').forEach(g => g.style.display = 'none');
+        
+        if(tab === 'join') {
+            document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+            document.getElementById('tab-join').style.display = 'flex';
+        } else {
+            document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+            document.getElementById('tab-create').style.display = 'flex';
+        }
+    }
+
+    function copyMyId() {
+        if(myId) {
+            navigator.clipboard.writeText(myId);
+            showToast("ID скопирован!");
+        } else {
+            // Если PeerJS еще не подключился, копируем локальный ID
+            navigator.clipboard.writeText(localId);
+            showToast("ID скопирован!");
+        }
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.innerText = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    // Enter для отправки
+    document.getElementById("msgInput").addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendMessage();
+    });
+
+    // Запуск
+    initPeer();
+
+</script>
+</body>
+</html>
